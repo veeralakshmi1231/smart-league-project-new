@@ -21,6 +21,10 @@ if (fs.existsSync(secretPath)) {
 }
 
 console.log("Environment Variables found:", Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE_')));
+console.log("Email Credentials Found:", { 
+  USER: !!process.env.EMAIL_USER, 
+  PASS: !!process.env.EMAIL_PASS 
+});
 
 // Firebase Admin Initialization
 let serviceAccount;
@@ -201,12 +205,16 @@ app.post('/create-staff', async (req, res) => {
           </div>
         </div>
       `,
-    }).catch(err => console.error("Background email failed:", err));
+    }).catch(err => {
+      console.error("CRITICAL: Background email failed to send!");
+      console.error("Error Code:", err.code);
+      console.error("Error Message:", err.message);
+    });
 
     res.status(200).json({ message: 'Staff user created! Email is being sent in the background. ✅', uid: userRecord.uid });
 
   } catch (error) {
-    console.error('Error creating staff:', error);
+    console.error('Error creating staff (Auth/DB part):', error);
     res.status(500).json({ error: error.message || 'Failed to create staff user ❌' });
   }
 });
@@ -222,8 +230,10 @@ app.post('/delete-user-completely', async (req, res) => {
       if (authErr.code !== 'auth/user-not-found') throw authErr;
     }
     await db.collection('users').doc(uid).delete();
+    console.log(`User ${uid} successfully wiped from Auth and DB ✅`);
     res.status(200).json({ message: 'User wiped completely ✅' });
   } catch (error) {
+    console.error('Deletion error:', error);
     res.status(500).json({ error: error.message });
   }
 });
