@@ -29,11 +29,18 @@ try {
 
 if (serviceAccount) {
   try {
+    // Safety fix for private key newlines in Environment Variables
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+    
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
+    console.log("Firebase Admin successfully initialized! 🚀");
   } catch (initErr) {
     console.error("Firebase initialization failed:", initErr.message);
+    serviceAccount = null; // Mark as failed so we don't try to use it
   }
 }
 
