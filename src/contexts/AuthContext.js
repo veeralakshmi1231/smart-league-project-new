@@ -40,17 +40,13 @@ export const AuthProvider = ({ children }) => {
     };
     await createUserProfile(cred.user.uid, profile);
     
-    // Auto-send Welcome Email via Local Nodemailer Server
+    // Auto-send Welcome Email via Local Nodemailer Server (Non-blocking)
     if (role === 'management') {
-      try {
-        await sendEmail({
-          to: email,
-          subject: 'Welcome to Smart League - Registration Under Review',
-          html: `<p>Hello ${displayName},</p><p>Welcome to Smart League! Your management account for <strong>${institution}</strong> is currently under review by our super admins. We will notify you as soon as your account is approved.</p><p>Best regards,<br/>The Smart League Team</p>`
-        });
-      } catch (e) {
-        console.error('Failed to send welcome email:', e);
-      }
+      sendEmail({
+        to: email,
+        subject: 'Welcome to Smart League - Registration Under Review',
+        html: `<p>Hello ${displayName},</p><p>Welcome to Smart League! Your management account for <strong>${institution}</strong> is currently under review by our super admins. We will notify you as soon as your account is approved.</p><p>Best regards,<br/>The Smart League Team</p>`
+      }).catch(e => console.error('Failed to send welcome email:', e));
     }
 
     setUserProfile({ id: cred.user.uid, ...profile });
