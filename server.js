@@ -98,16 +98,15 @@ const upload = multer({ storage: storageConfig });
 // Gmail transporter - FIXED FOR RENDER (Port 587)
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Use STARTTLS
-  pool: true,    // Use connection pooling
+  port: 465,
+  secure: true, // Use SSL for port 465
+  pool: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, // Force IPv4
+  family: 4, 
   tls: {
-    // Do not fail on invalid certs
     rejectUnauthorized: false
   }
 });
@@ -182,8 +181,9 @@ app.post('/create-staff', async (req, res) => {
     const loginLink = `${frontendUrl}/login?inviteToken=${inviteToken}`;
     
     // Send email in background (non-blocking) to prevent UI hangs
+    const senderEmail = process.env.EMAIL_USER;
     transporter.sendMail({
-      from: `"Smart League" <${process.env.EMAIL_USER}>`,
+      from: `"Smart League" <${senderEmail}>`,
       to: email,
       subject: `Account Ready: Join ${institution} on Smart League`,
       html: `
@@ -243,16 +243,26 @@ app.post('/delete-user-completely', async (req, res) => {
   }
 });
 
-// Delete User by Email
 app.post('/delete-user-by-email', async (req, res) => {
   if (!auth || !db) return res.status(500).json({ error: 'Firebase not initialized' });
   const { email } = req.body;
   try {
-    const userRecord = await auth.getUserByEmail(email);
+    let userRecord;
+    try {
+      userRecord = await auth.getUserByEmail(email);
+    } catch (authErr) {
+      if (authErr.code === 'auth/user-not-found') {
+        return res.status(404).json({ error: 'User not found in Firebase Auth' });
+      }
+      throw authErr;
+    }
+    
     await auth.deleteUser(userRecord.uid);
     await db.collection('users').doc(userRecord.uid).delete();
+    console.log(`User ${email} successfully wiped ✅`);
     res.status(200).json({ message: 'User wiped successfully ✅' });
   } catch (error) {
+    console.error('Deletion error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -284,6 +294,16 @@ app.post('/upload-local', upload.single('image'), (req, res) => {
 });
 
 app.get('/', (req, res) => res.send('Smart League API is running...'));
+
+// GLOBAL ERROR HANDLER - No more mysterious 500 errors!
+app.use((err, req, res, next) => {
+  console.error("SERVER CRASH PREVENTED:", err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    details: err.message,
+    code: err.code 
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
