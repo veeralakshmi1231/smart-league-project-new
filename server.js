@@ -97,24 +97,19 @@ const upload = multer({ storage: storageConfig });
 
 // Gmail transporter - FIXED FOR RENDER (Port 587)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use SSL for port 465
-  pool: true,
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, 
-  tls: {
-    rejectUnauthorized: false
-  }
+  pool: true
 });
 
+console.log("Nodemailer: Starting connection verification...");
 // Verify connection configuration
 transporter.verify(function (error, success) {
   if (error) {
-    console.log("Nodemailer verification error:", error);
+    console.log("Nodemailer verification error ❌:", error.message);
   } else {
     console.log("Server is ready to send emails ✅");
   }
