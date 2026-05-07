@@ -172,7 +172,8 @@ app.post('/create-staff', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const loginLink = `${frontendUrl}/login?inviteToken=${inviteToken}`;
     
-    await transporter.sendMail({
+    // Send email in background (non-blocking) to prevent UI hangs
+    transporter.sendMail({
       from: `"Smart League" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: `Account Ready: Join ${institution} on Smart League`,
@@ -200,9 +201,9 @@ app.post('/create-staff', async (req, res) => {
           </div>
         </div>
       `,
-    });
+    }).catch(err => console.error("Background email failed:", err));
 
-    res.status(200).json({ message: 'Staff user created and email sent! ✅', uid: userRecord.uid });
+    res.status(200).json({ message: 'Staff user created! Email is being sent in the background. ✅', uid: userRecord.uid });
 
   } catch (error) {
     console.error('Error creating staff:', error);
