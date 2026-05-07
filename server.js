@@ -10,9 +10,16 @@ require('dotenv').config();
 // Firebase Admin Initialization
 let serviceAccount;
 try {
-  // Try to parse from Environment Variable first (Production)
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  const envVal = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (envVal) {
+    if (envVal.trim().startsWith('{')) {
+      // It's a normal JSON string
+      serviceAccount = JSON.parse(envVal);
+    } else {
+      // It's a Base64 encoded string
+      const decoded = Buffer.from(envVal, 'base64').toString('utf-8');
+      serviceAccount = JSON.parse(decoded);
+    }
     console.log("Firebase Admin initialized via Environment Variable ✅");
   } else {
     throw new Error("No environment variable found");
