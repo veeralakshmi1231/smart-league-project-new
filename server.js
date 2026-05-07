@@ -1,18 +1,75 @@
-require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
+const admin = require('firebase-admin');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+require('dotenv').config();
+
+// Firebase Admin Initialization
+let serviceAccount;
+try {
+  // Try to parse from Environment Variable first (Production)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log("Firebase Admin initialized via Environment Variable ✅");
+  } else {
+    throw new Error("No environment variable found");
+  }
+} catch (e) {
+  // Fallback to local file (Development)
+  try {
+    serviceAccount = require('./serviceAccountKey.json');
+    console.log("Firebase Admin initialized via local serviceAccountKey.json ✅");
+  } catch (err) {
+    console.error("WARNING: Could not find Firebase Service Account Key. Firebase operations will fail. ❌");
+  }
+}
+
+if (serviceAccount) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  } catch (initErr) {
+    console.error("Firebase initialization failed:", initErr.message);
+  }
+}
+
+const db = serviceAccount ? admin.firestore() : null;
+const auth = serviceAccount ? admin.auth() : null;
 
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Configure Nodemailer with Gmail
+// Configure Multer for local storage
+const storageConfig = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync('uploads/')) {
+      fs.mkdirSync('uploads/');
+    }
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storageConfig });
+
+// Gmail transporter - FIXED FOR RENDER (Port 587)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // This should be a Gmail App Password
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -21,31 +78,168 @@ transporter.verify(function (error, success) {
   if (error) {
     console.log("Nodemailer verification error:", error);
   } else {
-    console.log("Server is ready to take our messages");
+    console.log("Server is ready to send emails ✅");
   }
 });
 
-app.post('/send-email', async (req, res) => {
-  const { to, subject, html } = req.body;
+// Create Staff User Endpoint
+app.post('/create-staff', async (req, res) => {
+  if (!auth || !db) return res.status(500).json({ error: 'Firebase not initialized on server' });
+  const { email, name, institution, invitedBy, role } = req.body;
 
-  const mailOptions = {
-    from: `"Smart League" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    html,
-  };
+  if (!email || !name || !institution) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const generatedPassword = Math.random().toString(36).slice(-8);
+  const assignedRole = role || 'editor';
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Email sent to ${to}`);
-    res.status(200).json({ message: 'Email sent successfully' });
+    let userRecord;
+    try {
+      userRecord = await auth.createUser({
+        email,
+        password: generatedPassword,
+        displayName: name,
+      });
+    } catch (authError) {
+      if (authError.code === 'auth/email-already-exists') {
+        userRecord = await auth.getUserByEmail(email);
+        await auth.updateUser(userRecord.uid, { password: generatedPassword });
+      } else {
+        throw authError;
+      }
+    }
+
+    const profileData = {
+      displayName: name,
+      email: email,
+      institution: institution,
+      role: assignedRole,
+      status: 'active',
+      invitedBy: invitedBy,
+      requiresPasswordReset: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection('users').doc(userRecord.uid).set(profileData, { merge: true });
+
+    await db.collection('invites').add({
+      email, name, institution,
+      status: 'completed',
+      uid: userRecord.uid,
+      invitedBy,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const inviteToken = require('crypto').randomBytes(32).toString('hex');
+    await db.collection('tempInviteTokens').doc(inviteToken).set({
+      email,
+      password: generatedPassword,
+      expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 24)),
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const loginLink = `${frontendUrl}/login?inviteToken=${inviteToken}`;
+    
+    await transporter.sendMail({
+      from: `"Smart League" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Account Ready: Join ${institution} on Smart League`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a1c1e;">
+          <div style="background: #002045; padding: 40px; text-align: center; border-radius: 20px 20px 0 0;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Your Account is Ready</h1>
+          </div>
+          <div style="padding: 40px; border: 1px solid #e1e2ec; border-radius: 0 0 20px 20px;">
+            <p>Hello <strong>${name}</strong>,</p>
+            <p>Your staff account for <strong>${institution}</strong> has been successfully created. You have been assigned the role of <strong>${assignedRole.toUpperCase()}</strong>.</p>
+            
+            <div style="background: #f0f0f7; padding: 20px; border-radius: 12px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>Login Email:</strong> ${email}</p>
+              <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> ${generatedPassword}</p>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+              <a href="${loginLink}" style="background: #002045; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+            </div>
+            
+            <p style="margin-top: 40px; font-size: 12px; color: #74777f; border-top: 1px solid #e1e2ec; padding-top: 20px;">
+              Welcome to the Smart League network!
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.status(200).json({ message: 'Staff user created and email sent! ✅', uid: userRecord.uid });
+
   } catch (error) {
-    console.error('Error sending email:', error);
-    res.status(500).json({ error: 'Failed to send email' });
+    console.error('Error creating staff:', error);
+    res.status(500).json({ error: error.message || 'Failed to create staff user ❌' });
   }
 });
+
+// Delete User Completely
+app.post('/delete-user-completely', async (req, res) => {
+  if (!auth || !db) return res.status(500).json({ error: 'Firebase not initialized' });
+  const { uid } = req.body;
+  try {
+    try {
+      await auth.deleteUser(uid);
+    } catch (authErr) {
+      if (authErr.code !== 'auth/user-not-found') throw authErr;
+    }
+    await db.collection('users').doc(uid).delete();
+    res.status(200).json({ message: 'User wiped completely ✅' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete User by Email
+app.post('/delete-user-by-email', async (req, res) => {
+  if (!auth || !db) return res.status(500).json({ error: 'Firebase not initialized' });
+  const { email } = req.body;
+  try {
+    const userRecord = await auth.getUserByEmail(email);
+    await auth.deleteUser(userRecord.uid);
+    await db.collection('users').doc(userRecord.uid).delete();
+    res.status(200).json({ message: 'User wiped successfully ✅' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generic Email API
+app.post('/send-email', async (req, res) => {
+  const { to, subject, html } = req.body;
+  try {
+    await transporter.sendMail({
+      from: `"Smart League" <${process.env.EMAIL_USER}>`,
+      to, subject, html,
+    });
+    res.status(200).json({ message: 'Email sent successfully ✅' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send email ❌' });
+  }
+});
+
+// Local Upload API
+app.post('/upload-local', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
+    const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    res.status(200).json({ url: fileUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to upload file locally' });
+  }
+});
+
+app.get('/', (req, res) => res.send('Smart League API is running...'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Email server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
