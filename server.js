@@ -5,7 +5,13 @@ const admin = require('firebase-admin');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config();
+const secretPath = '/etc/secrets/.env';
+if (fs.existsSync(secretPath)) {
+  require('dotenv').config({ path: secretPath });
+  console.log("Loaded configuration from Render Secret File ✅");
+} else {
+  require('dotenv').config();
+}
 
 console.log("Environment Variables found:", Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE_')));
 
