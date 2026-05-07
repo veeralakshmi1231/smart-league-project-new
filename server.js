@@ -7,8 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const secretPath = '/etc/secrets/.env';
 if (fs.existsSync(secretPath)) {
-  require('dotenv').config({ path: secretPath });
-  console.log("Loaded configuration from Render Secret File ✅");
+  require('dotenv').config({ path: secretPath, override: true });
+  console.log("Loaded configuration from Render Secret File (FORCED) ✅");
 } else {
   require('dotenv').config();
 }
