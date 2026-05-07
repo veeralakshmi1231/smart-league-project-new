@@ -101,7 +101,7 @@ export const StudentSidebar = () => {
     { to: '/explore', icon: 'explore', label: 'Explore Feed' },
     { to: '/events', icon: 'calendar_month', label: 'Upcoming Events' },
     { to: '/activity', icon: 'notifications', label: 'Recent Activity', badge: unreadCount },
-    { to: `/profile/${userProfile?.slug || 'me'}`, icon: 'account_circle', label: 'My Portfolio' },
+    
   ];
 
   return (

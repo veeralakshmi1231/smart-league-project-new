@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, 
 import { db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { sendEmail } from '../../utils/emailService';
+import { ENDPOINTS } from '../../config/api';
 
 export const StaffView = () => {
   const { userProfile } = useAuth();
@@ -52,7 +53,7 @@ export const StaffView = () => {
       const institutionName = userProfile?.institution || 'Smart League Member';
       
       // Call Backend to Create User Directly
-      const response = await fetch('http://localhost:5000/create-staff', {
+      const response = await fetch(ENDPOINTS.CREATE_STAFF, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,7 +94,7 @@ export const StaffView = () => {
   const handleWipeStaff = async (email, staffId = null) => {
     if (!window.confirm(`Wipe ${email} completely? This removes their login so you can reuse the email.`)) return;
     try {
-      const response = await fetch('http://localhost:5000/delete-user-by-email', {
+      const response = await fetch(ENDPOINTS.DELETE_BY_EMAIL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

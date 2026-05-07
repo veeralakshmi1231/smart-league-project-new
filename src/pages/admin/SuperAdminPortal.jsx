@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { sendEmail } from '../../utils/emailService';
+import { ENDPOINTS } from '../../config/api';
 
 export const SuperAdminPortal = () => {
   const { userProfile, logout } = useAuth();
@@ -119,7 +120,7 @@ export const SuperAdminPortal = () => {
     if (!window.confirm('Are you sure you want to delete this user COMPLETELY? This will also remove them from Firebase Auth so the email can be reused.')) return;
     try {
       // Call Backend to delete from Auth and Firestore
-      const response = await fetch('http://localhost:5000/delete-user-completely', {
+      const response = await fetch(ENDPOINTS.DELETE_USER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uid: userId }),

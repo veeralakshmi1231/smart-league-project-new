@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { ENDPOINTS } from '../../config/api';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
@@ -379,7 +380,7 @@ export const Signup = () => {
                 onClick={async () => {
                   if (!window.confirm(`DEV ONLY: Wipe ${form.email} completely and retry?`)) return;
                   try {
-                    const res = await fetch('http://localhost:5000/delete-user-by-email', {
+                    const res = await fetch(ENDPOINTS.DELETE_BY_EMAIL, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ email: form.email })

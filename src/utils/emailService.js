@@ -1,6 +1,8 @@
 // src/utils/emailService.js
 
-const API_URL = 'http://localhost:5000/send-email';
+import { ENDPOINTS } from '../config/api';
+
+const API_URL = ENDPOINTS.SEND_EMAIL;
 
 export const sendEmail = async ({ to, subject, html }) => {
   try {

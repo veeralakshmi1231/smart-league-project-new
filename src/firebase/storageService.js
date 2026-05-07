@@ -1,6 +1,7 @@
 // src/firebase/storageService.js
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from './config';
+import { ENDPOINTS } from '../config/api';
 
 /**
  * Upload a file to local backend server (Free Alternative to Firebase Storage)
@@ -14,7 +15,7 @@ export const uploadFile = async (file, _path, onProgress) => {
   formData.append('image', file);
 
   try {
-    const response = await fetch('http://localhost:5000/upload-local', {
+    const response = await fetch(ENDPOINTS.UPLOAD_LOCAL, {
       method: 'POST',
       body: formData,
     });
