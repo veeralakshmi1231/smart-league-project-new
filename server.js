@@ -5,6 +5,13 @@ const admin = require('firebase-admin');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const dns = require('dns');
+
+// Force IPv4 globally to prevent ENETUNREACH errors on Render
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 const secretPath = '/etc/secrets/.env';
 if (fs.existsSync(secretPath)) {
   require('dotenv').config({ path: secretPath, override: true });
