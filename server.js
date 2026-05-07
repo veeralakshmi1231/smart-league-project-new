@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+console.log("Environment Variables found:", Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE_')));
+
 // Firebase Admin Initialization
 let serviceAccount;
 try {
