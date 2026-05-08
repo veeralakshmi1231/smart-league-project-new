@@ -96,16 +96,18 @@ const storageConfig = multer.diskStorage({
 const upload = multer({ storage: storageConfig });
 
 // Gmail transporter - FIXED FOR RENDER (Port 587)
+console.log("SERVER VERSION: 2.0.0 (Anti-Hang Mode)");
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true, // SSL
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  connectionTimeout: 15000,
-  socketTimeout: 15000,
+  connectionTimeout: 5000, // FAST FAIL - 5 seconds
+  socketTimeout: 5000,
 });
 
 async function verifyEmail() {
