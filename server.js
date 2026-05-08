@@ -112,6 +112,16 @@ transporter.verify(function (error, success) {
     console.log("Nodemailer verification error ❌:", error.message);
   } else {
     console.log("Server is ready to send emails ✅");
+    
+    // AUTO-TEST ON STARTUP
+    console.log("Sending Startup Test Email...");
+    transporter.sendMail({
+      from: `"Smart League System" <${process.env.EMAIL_USER}>`,
+      to: "esthersilviya900@gmail.com",
+      subject: "🚀 Server Startup Test",
+      text: "If you are reading this, your Render server is successfully sending emails! ✅"
+    }).then(() => console.log("Startup Test Email SENT successfully! 📬"))
+      .catch(err => console.error("Startup Test Email FAILED ❌:", err.message));
   }
 });
 
