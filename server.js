@@ -97,35 +97,41 @@ const upload = multer({ storage: storageConfig });
 
 // Gmail transporter - FIXED FOR RENDER (Port 587)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
+  connectionTimeout: 15000,
+  socketTimeout: 15000,
 });
 
-console.log("Nodemailer: Starting connection verification...");
-// Verify connection configuration
-transporter.verify(function (error, success) {
-  if (error) {
-    console.log("Nodemailer verification error ❌:", error.message);
-  } else {
+async function verifyEmail() {
+  console.log("Nodemailer: Starting manual connection verification...");
+  try {
+    await transporter.verify();
     console.log("Server is ready to send emails ✅");
     
-    // AUTO-TEST ON STARTUP
+    // Test email
     console.log("Sending Startup Test Email...");
-    transporter.sendMail({
+    await transporter.sendMail({
       from: `"Smart League System" <${process.env.EMAIL_USER}>`,
       to: "esthersilviya900@gmail.com",
-      subject: "🚀 Server Startup Test",
-      text: "If you are reading this, your Render server is successfully sending emails! ✅"
-    }).then(() => console.log("Startup Test Email SENT successfully! 📬"))
-      .catch(err => console.error("Startup Test Email FAILED ❌:", err.message));
+      subject: "🚀 Server Startup Test (Manual Mode)",
+      text: "If you see this, the manual connection fix worked! ✅"
+    });
+    console.log("Startup Test Email SENT successfully! 📬");
+  } catch (error) {
+    console.error("Nodemailer verification error ❌:", error.message);
+    if (error.code === 'ETIMEDOUT') {
+      console.error("The connection timed out. Render might be blocking Port 465.");
+    }
   }
-});
+}
+
+verifyEmail();
 
 // Create Staff User Endpoint
 app.post('/create-staff', async (req, res) => {
