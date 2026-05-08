@@ -22,9 +22,9 @@ if (fs.existsSync(secretPath)) {
 }
 
 console.log("Environment Variables found:", Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE_')));
-console.log("Email Credentials Found:", { 
-  USER: !!process.env.EMAIL_USER, 
-  PASS: !!process.env.EMAIL_PASS 
+console.log("Email Credentials Found:", {
+  USER: !!process.env.EMAIL_USER,
+  PASS: !!process.env.EMAIL_PASS
 });
 
 // Firebase Admin Initialization
@@ -60,7 +60,7 @@ if (serviceAccount) {
     if (serviceAccount.private_key) {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     }
-    
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
@@ -175,7 +175,7 @@ app.post('/create-staff', async (req, res) => {
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const loginLink = `${frontendUrl}/login?inviteToken=${inviteToken}`;
-    
+
     // Send email in background (non-blocking) to prevent UI hangs
     const senderEmail = process.env.EMAIL_USER;
     console.log(`DEBUG: Attempting to send invitation to: ${email} from ${senderEmail}`);
@@ -253,7 +253,7 @@ app.post('/delete-user-by-email', async (req, res) => {
       }
       throw authErr;
     }
-    
+
     await auth.deleteUser(userRecord.uid);
     await db.collection('users').doc(userRecord.uid).delete();
     console.log(`User ${email} successfully wiped ✅`);
@@ -290,15 +290,34 @@ app.post('/upload-local', upload.single('image'), (req, res) => {
   }
 });
 
+// Direct Test Email Endpoint (for browser testing)
+app.get('/test-email', async (req, res) => {
+  const senderEmail = process.env.EMAIL_USER;
+  console.log(`DEBUG: Browser test triggered to: esthersilviya900@gmail.com`);
+
+  transporter.sendMail({
+    from: `"Smart League Test" <${senderEmail}>`,
+    to: "esthersilviya900@gmail.com",
+    subject: "🔥 Direct Browser Test",
+    text: "If you are reading this, the backend is 100% working! ✅"
+  }).then(() => {
+    console.log("Browser Test Email SENT successfully! 📬");
+    res.status(200).send("Test email SENT! Check your inbox (and Spam). ✅");
+  }).catch(err => {
+    console.error("Browser Test Email FAILED ❌:", err.message);
+    res.status(500).send(`Test failed: ${err.message} ❌`);
+  });
+});
+
 app.get('/', (req, res) => res.send('Smart League API is running...'));
 
 // GLOBAL ERROR HANDLER - No more mysterious 500 errors!
 app.use((err, req, res, next) => {
   console.error("SERVER CRASH PREVENTED:", err);
-  res.status(500).json({ 
-    error: "Internal Server Error", 
+  res.status(500).json({
+    error: "Internal Server Error",
     details: err.message,
-    code: err.code 
+    code: err.code
   });
 });
 
