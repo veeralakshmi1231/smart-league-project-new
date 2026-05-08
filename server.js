@@ -177,6 +177,7 @@ app.post('/create-staff', async (req, res) => {
     
     // Send email in background (non-blocking) to prevent UI hangs
     const senderEmail = process.env.EMAIL_USER;
+    console.log(`DEBUG: Attempting to send invitation to: ${email} from ${senderEmail}`);
     transporter.sendMail({
       from: `"Smart League" <${senderEmail}>`,
       to: email,
