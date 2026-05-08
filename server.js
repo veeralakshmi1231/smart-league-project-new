@@ -1,6 +1,6 @@
 
 const express = require('express');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const cors = require('cors');
 const admin = require('firebase-admin');
 const multer = require('multer');
@@ -96,25 +96,39 @@ const storageConfig = multer.diskStorage({
 });
 const upload = multer({ storage: storageConfig });
 
-// Gmail transporter - FIXED FOR RENDER (Port 587)
-console.log("SERVER VERSION: 3.0.0 (DNS-Bypass Mode)");
+// SendGrid Configuration
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const transporter = nodemailer.createTransport({
-  host: '74.125.200.108', // This is one of Gmail's direct IP addresses
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 5000,
-  socketTimeout: 5000,
-  tls: {
-    servername: 'smtp.gmail.com' // Crucial for SSL to work with an IP
-  }
+console.log("SERVER VERSION: 4.0.0 (SendGrid-API Mode)");
+console.log("Email Credentials Found:", { 
+  SENDGRID_KEY: !!process.env.SENDGRID_API_KEY,
+  FROM_EMAIL: process.env.EMAIL_USER 
 });
 
-console.log("Nodemailer: Skip verification, ready to attempt background sending.");
+// Helper function to send emails via SendGrid
+const sendAppEmail = async (to, subject, html) => {
+  const msg = {
+    to: to,
+    from: `"Smart League" <${process.env.EMAIL_USER}>`,
+    subject: subject,
+    html: html,
+  };
+  try {
+    await sgMail.send(msg);
+    console.log(`Email SENT successfully to ${to} ✅`);
+    return true;
+  } catch (error) {
+    console.error("SendGrid Error ❌:", error.response ? error.response.body : error.message);
+    return false;
+  }
+};
+
+// Test email on startup
+if (process.env.SENDGRID_API_KEY) {
+  console.log("Nodemailer replaced by SendGrid. Attempting startup test...");
+  sendAppEmail("esthersilviya900@gmail.com", "🚀 SendGrid Startup Test", "Your Render server is now sending emails via SendGrid API! ✅")
+    .then(success => success ? console.log("Startup Test SENT! 📬") : console.log("Startup Test FAILED ❌"));
+}
 
 // Create Staff User Endpoint
 app.post('/create-staff', async (req, res) => {
@@ -176,14 +190,9 @@ app.post('/create-staff', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const loginLink = `${frontendUrl}/login?inviteToken=${inviteToken}`;
 
-    // Send email in background (non-blocking) to prevent UI hangs
+    // Send email via SendGrid (non-blocking)
     const senderEmail = process.env.EMAIL_USER;
-    console.log(`DEBUG: Attempting to send invitation to: ${email} from ${senderEmail}`);
-    transporter.sendMail({
-      from: `"Smart League" <${senderEmail}>`,
-      to: email,
-      subject: `Account Ready: Join ${institution} on Smart League`,
-      html: `
+    const emailHtml = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1a1c1e;">
           <div style="background: #002045; padding: 40px; text-align: center; border-radius: 20px 20px 0 0;">
             <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Your Account is Ready</h1>
@@ -206,12 +215,9 @@ app.post('/create-staff', async (req, res) => {
             </p>
           </div>
         </div>
-      `,
-    }).catch(err => {
-      console.error("CRITICAL: Background email failed to send!");
-      console.error("Error Code:", err.code);
-      console.error("Error Message:", err.message);
-    });
+      `;
+    
+    sendAppEmail(email, `Account Ready: Join ${institution} on Smart League`, emailHtml);
 
     res.status(200).json({ message: 'Staff user created! Email is being sent in the background. ✅', uid: userRecord.uid });
 
@@ -267,13 +273,10 @@ app.post('/delete-user-by-email', async (req, res) => {
 // Generic Email API
 app.post('/send-email', async (req, res) => {
   const { to, subject, html } = req.body;
-  try {
-    await transporter.sendMail({
-      from: `"Smart League" <${process.env.EMAIL_USER}>`,
-      to, subject, html,
-    });
+  const success = await sendAppEmail(to, subject, html);
+  if (success) {
     res.status(200).json({ message: 'Email sent successfully ✅' });
-  } catch (error) {
+  } else {
     res.status(500).json({ error: 'Failed to send email ❌' });
   }
 });
@@ -292,21 +295,12 @@ app.post('/upload-local', upload.single('image'), (req, res) => {
 
 // Direct Test Email Endpoint (for browser testing)
 app.get('/test-email', async (req, res) => {
-  const senderEmail = process.env.EMAIL_USER;
-  console.log(`DEBUG: Browser test triggered to: esthersilviya900@gmail.com`);
-
-  transporter.sendMail({
-    from: `"Smart League Test" <${senderEmail}>`,
-    to: "esthersilviya900@gmail.com",
-    subject: "🔥 Direct Browser Test",
-    text: "If you are reading this, the backend is 100% working! ✅"
-  }).then(() => {
-    console.log("Browser Test Email SENT successfully! 📬");
+  const success = await sendAppEmail("esthersilviya900@gmail.com", "🔥 SendGrid Browser Test", "If you are reading this, the SendGrid API fix worked! ✅");
+  if (success) {
     res.status(200).send("Test email SENT! Check your inbox (and Spam). ✅");
-  }).catch(err => {
-    console.error("Browser Test Email FAILED ❌:", err.message);
-    res.status(500).send(`Test failed: ${err.message} ❌`);
-  });
+  } else {
+    res.status(500).send("Test failed! Check Render logs for the error code. ❌");
+  }
 });
 
 app.get('/', (req, res) => res.send('Smart League API is running...'));
